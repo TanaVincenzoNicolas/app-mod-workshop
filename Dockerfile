@@ -1,22 +1,36 @@
-# Use an official PHP image with Apache
-# Pull a suitable php image
-FROM __________# Define the env variable for the Apache listening port 8080
-ENV __________
 
-# Set working directory inside the container
-WORKDIR __________
+# Use the official PHP image.
+# https://hub.docker.com/_/php
+FROM php:8.3-apache
 
-# Install required PHP extensions: PDO, MySQL, and other dependencies
-RUN __________
+# Configure PHP for Cloud Run.
+# Precompile PHP code with opcache.
+RUN docker-php-ext-install -j "$(nproc)" opcache
+RUN set -ex; \
+  { \
+    echo "; Cloud Run enforces memory & timeouts"; \
+    echo "memory_limit = -1"; \
+    echo "max_execution_time = 0"; \
+    echo "; File upload at Cloud Run network limit"; \
+    echo "upload_max_filesize = 32M"; \
+    echo "post_max_size = 32M"; \
+    echo "; Configure Opcache for Containers"; \
+    echo "opcache.enable = On"; \
+    echo "opcache.validate_timestamps = Off"; \
+    echo "; Configure Opcache Memory (Application-specific)"; \
+    echo "opcache.memory_consumption = 32"; \
+  } > "$PHP_INI_DIR/conf.d/cloud-run.ini"
 
-# Copy all application files into the container
-COPY __________
+# Copy in custom code from the host machine.
+WORKDIR /var/www/html
+COPY . ./
 
-# Configure Apache to listen on port 8080. Use ‘sed' command to change the default listening port.
-RUN __________
+# Use the PORT environment variable in Apache configuration files.
+# https://cloud.google.com/run/docs/reference/container-contract#port
+RUN sed -i 's/80/${PORT}/g' /etc/apache2/sites-available/000-default.conf /etc/apache2/ports.conf
 
-# When in doubt, always expose to port 8080
-EXPOSE __________
-
-# Start Apache in the foreground
-CMD __________
+# Configure PHP for development.
+# Switch to the production php.ini for production operations.
+# RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
+# https://github.com/docker-library/docs/blob/master/php/README.md#configuration
+RUN mv "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
