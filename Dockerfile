@@ -1,21 +1,42 @@
-# copied from https://www.cloudways.com/blog/docker-php-application/
+# Use the official PHP image.
+# https://hub.docker.com/_/php
+FROM php:5.6-apache
 
-FROM php:7.4-apache
+# Configure PHP for Cloud Run.
+# Precompile PHP code with opcache.
+# Install PHP's extension for MySQL
+RUN docker-php-ext-install -j "$(nproc)" opcache mysqli pdo pdo_mysql && docker-php-ext-enable pdo_mysql
+RUN set -ex; \
+  { \
+    echo "; Cloud Run enforces memory & timeouts"; \
+    echo "memory_limit = -1"; \
+    echo "max_execution_time = 0"; \
+    echo "; File upload at Cloud Run network limit"; \
+    echo "upload_max_filesize = 32M"; \
+    echo "post_max_size = 32M"; \
+    echo "; Configure Opcache for Containers"; \
+    echo "opcache.enable = On"; \
+    echo "opcache.validate_timestamps = Off"; \
+    echo "; Configure Opcache Memory (Application-specific)"; \
+    echo "opcache.memory_consumption = 32"; \
+  } > "$PHP_INI_DIR/conf.d/cloud-run.ini"
 
-# Install the MySQL extension
-RUN docker-php-ext-install mysqli
-#        /usr/local/bin/docker-php-ext-install -j5 gd mbstring mysqli pdo pdo_mysql shmop
-RUN docker-php-ext-install -j5 mysqli pdo pdo_mysql
-
-# Create a directory for your application code
+# Copy in custom code from the host machine.
 WORKDIR /var/www/html
+# ./ /var/www/html
+COPY . .
 
-# Copy the application code into the container
-COPY ./ /var/www/html
+# Use the PORT environment variable in Apache configuration files.
+# https://cloud.google.com/run/docs/reference/container-contract#port
+# Setup the PORT variable
+ENV PORT=8080
+RUN sed -i 's/80/${PORT}/g' /etc/apache2/sites-available/000-default.conf /etc/apache2/ports.conf
 
-# Expose port 80 for web traffic
-EXPOSE 80
+# Configure PHP for development.
+# Switch to the production php.ini for production operations.
+# RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
+# https://github.com/docker-library/docs/blob/master/php/README.md#configuration
+RUN mv "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
 
-# added per Clod Run
-# https://stackoverflow.com/questions/59324794/google-cloud-run-port
-ENV PORT 80
+# Expose the port
+EXPOSE 8080
