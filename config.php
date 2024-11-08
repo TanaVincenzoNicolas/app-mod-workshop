@@ -2,7 +2,7 @@
 // Configurazione del database
 $db_host = '34.154.1.151';
 $db_name = 'image_catalog';
-$db_user = 'root';
+$db_user = 'appmod-phpapp-user';
 $db_pass = 'tananai';
 
 try {
